@@ -6,13 +6,11 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
-# Make sure your OPENAI_API_KEY is set in Render's environment variables.
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # In-memory store: session_id => conversation list
 SESSION_CONVERSATIONS = {}
 
-# Your system prompt describing Hongjie Shi's background and instructions:
 SYSTEM_PROMPT_CONTENT = """
 You are a highly skilled personal assistant representing Hongjie Shi, a talented and versatile computer science graduate with expertise in game engine development, machine learning, and full-stack development. Your role is to assist recruiters and hiring managers visiting Hongjie's personal portfolio website by providing concise yet informative insights into his projects, skills, and achievements. Highlight his educational background, technical expertise, and key accomplishments to persuade potential employers of his suitability for high-impact roles.
 
@@ -25,8 +23,6 @@ You are a highly skilled personal assistant representing Hongjie Shi, a talented
 
 **Always respond in a professional, concise, and engaging manner to build a strong impression of Hongjie's qualifications and suitability for challenging roles in technology and software development. Limit your responses to two or three short sentences, or brief bullet points, without losing essential details.**
 """.strip()
-
-
 
 @app.route("/")
 def home():
@@ -41,7 +37,7 @@ def chat():
     if not user_message:
         return jsonify({"error": "No message provided"}), 400
 
-    # If new session, start with the system prompt about Hongjie
+    # If new session, start with the system prompt
     if session_id not in SESSION_CONVERSATIONS:
         SESSION_CONVERSATIONS[session_id] = [
             {"role": "system", "content": SYSTEM_PROMPT_CONTENT}
@@ -72,4 +68,4 @@ def chat():
         return jsonify({"error": "Something went wrong"}), 500
 
 if __name__ == "__main__":
-    app.run(debug=True)  # disable debug in production
+    app.run(debug=True)
