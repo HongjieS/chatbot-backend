@@ -6,12 +6,14 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-# Load OpenAI API key from environment variable
 openai.api_key = os.getenv("OPENAI_API_KEY")
+
+# Replace with your Assistant ID
+ASSISTANT_ID = "asst_ExmNOH6JnD7u06HMzzKcOeg4"
 
 @app.route("/")
 def home():
-    return jsonify({"message": "API is running."})  # Simple JSON response for root route
+    return jsonify({"message": "API is running."})
 
 @app.route("/chat", methods=["POST"])
 def chat():
@@ -20,19 +22,25 @@ def chat():
         if not user_message:
             return jsonify({"error": "Message is required"}), 400
 
-        print(f"User Message: {user_message}")
+        # Create a new thread
+        thread = openai.Thread.create()
+        thread_id = thread["id"]
 
-        # OpenAI GPT request
-        response = openai.ChatCompletion.create(
-            model="asst_EXmNOH6JnD7u06HMzrKc0eg4",  # Replace with a valid model
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": user_message}
-            ]
+        # Add user message to the thread
+        openai.Thread.messages.create(
+            thread_id=thread_id,
+            role="user",
+            content=user_message
         )
 
-        # Extract reply
-        reply = response.get("choices", [{}])[0].get("message", {}).get("content", "I'm not sure how to respond to that.")
+        # Generate a response from the Assistant
+        response = openai.Thread.runs.create(
+            thread_id=thread_id,
+            assistant_id=ASSISTANT_ID
+        )
+
+        # Get the Assistant's reply
+        reply = response.get("message", {}).get("content", "I'm not sure how to respond to that.")
         return jsonify({"reply": reply})
 
     except Exception as e:
