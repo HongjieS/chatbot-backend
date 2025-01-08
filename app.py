@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests
 import os
+import time
 
 app = Flask(__name__)
 CORS(app)
@@ -55,29 +56,44 @@ def chat():
             return jsonify({"error": "Failed to add message to thread"}), 500
 
         # Step 3: Run the assistant on the thread
-        run_payload = {
-            "assistant_id": ASSISTANT_ID,
-        }
+        run_payload = {"assistant_id": ASSISTANT_ID}
         run_response = requests.post(
             f"{OPENAI_API_URL}/threads/{thread_id}/runs",
             headers=HEADERS,
             json=run_payload,
         )
         if run_response.status_code != 200:
-            print("Run failed:", run_response.json())
+            print("Run initiation failed:", run_response.json())
             return jsonify({"error": "Failed to run assistant"}), 500
 
-        # Log the run response
-        print("Run Response:", run_response.json())
+        run_id = run_response.json().get("id")
+        if not run_id:
+            print("Run ID missing in response:", run_response.json())
+            return jsonify({"error": "Invalid run initiation response"}), 500
 
-        # Extract the Assistant's reply
-        reply = run_response.json().get("message", {}).get("content", "No response from assistant.")
-        return jsonify({"reply": reply})
+        # Step 4: Poll until the run is completed
+        for _ in range(20):  # Polling for up to 10 seconds (adjust as needed)
+            run_status_response = requests.get(
+                f"{OPENAI_API_URL}/threads/{thread_id}/runs/{run_id}",
+                headers=HEADERS,
+            )
+            if run_status_response.status_code != 200:
+                print("Failed to fetch run status:", run_status_response.json())
+                return jsonify({"error": "Failed to fetch run status"}), 500
+
+            run_status = run_status_response.json().get("status")
+            if run_status == "completed":
+                # Extract the Assistant's reply
+                reply = run_status_response.json().get("message", {}).get("content", "No response from assistant.")
+                return jsonify({"reply": reply})
+
+            time.sleep(0.5)  # Wait for 500ms before polling again
+
+        return jsonify({"error": "Assistant run timed out"}), 500
 
     except Exception as e:
         print(f"Error occurred: {e}")
         return jsonify({"reply": "Sorry, something went wrong. Please try again later."}), 500
-
 
 
 if __name__ == "__main__":
