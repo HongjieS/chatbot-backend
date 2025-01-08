@@ -41,7 +41,7 @@ def chat():
         logging.info(f"Bot reply: {reply}")
         return jsonify({"reply": reply})
 
-    except openai.error.APIError as api_error:
+    except openai.error.OpenAIError as api_error:
         # Log OpenAI-specific errors
         logging.error(f"OpenAI API error: {api_error}")
         return jsonify({"reply": "There was an error communicating with OpenAI. Please try again later."}), 500
