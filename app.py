@@ -24,7 +24,7 @@ def chat():
 
         # OpenAI GPT request
         response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",  # Replace with a valid model
+            model="asst_EXmNOH6JnD7u06HMzrKc0eg4",  # Replace with a valid model
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": user_message}
