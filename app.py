@@ -1,15 +1,22 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import openai
+import requests
 import os
 
 app = Flask(__name__)
 CORS(app)
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# OpenAI API Key
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+ASSISTANT_ID = "asst_ExmNOH6JnD7u06HMzzKcOeg4"  # Replace with your Assistant ID
+OPENAI_API_URL = "https://api.openai.com/v1"
 
-# Replace with your Assistant ID
-ASSISTANT_ID = "asst_ExmNOH6JnD7u06HMzzKcOeg4"
+# Add beta header for Assistants API
+HEADERS = {
+    "Authorization": f"Bearer {OPENAI_API_KEY}",
+    "Content-Type": "application/json",
+    "OpenAI-Beta": "assistants=v2",
+}
 
 @app.route("/")
 def home():
@@ -22,25 +29,40 @@ def chat():
         if not user_message:
             return jsonify({"error": "Message is required"}), 400
 
-        # Create a new thread
-        thread = openai.Thread.create()
-        thread_id = thread["id"]
+        # Step 1: Create a thread
+        thread_response = requests.post(f"{OPENAI_API_URL}/threads", headers=HEADERS)
+        if thread_response.status_code != 200:
+            return jsonify({"error": "Failed to create thread"}), 500
 
-        # Add user message to the thread
-        openai.Thread.messages.create(
-            thread_id=thread_id,
-            role="user",
-            content=user_message
+        thread_id = thread_response.json()["id"]
+
+        # Step 2: Add user message to the thread
+        message_payload = {
+            "role": "user",
+            "content": user_message,
+        }
+        message_response = requests.post(
+            f"{OPENAI_API_URL}/threads/{thread_id}/messages",
+            headers=HEADERS,
+            json=message_payload,
         )
+        if message_response.status_code != 200:
+            return jsonify({"error": "Failed to add message to thread"}), 500
 
-        # Generate a response from the Assistant
-        response = openai.Thread.runs.create(
-            thread_id=thread_id,
-            assistant_id=ASSISTANT_ID
+        # Step 3: Run the assistant on the thread
+        run_payload = {
+            "assistant_id": ASSISTANT_ID,
+        }
+        run_response = requests.post(
+            f"{OPENAI_API_URL}/threads/{thread_id}/runs",
+            headers=HEADERS,
+            json=run_payload,
         )
+        if run_response.status_code != 200:
+            return jsonify({"error": "Failed to run assistant"}), 500
 
-        # Get the Assistant's reply
-        reply = response.get("message", {}).get("content", "I'm not sure how to respond to that.")
+        # Extract the Assistant's reply
+        reply = run_response.json()["message"]["content"]
         return jsonify({"reply": reply})
 
     except Exception as e:
