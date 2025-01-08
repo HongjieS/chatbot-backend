@@ -32,18 +32,18 @@ def chat():
 
         # Interact with the OpenAI API
         response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
+            model="gpt-4",
             messages=[{"role": "user", "content": user_message}]
         )
 
         # Extract the bot's reply
-        reply = response['choices'][0]['message']['content']
+        reply = response.choices[0].message.content
         logging.info(f"Bot reply: {reply}")
         return jsonify({"reply": reply})
 
-    except openai.error.OpenAIError as oe:
+    except openai.error.APIError as api_error:
         # Log OpenAI-specific errors
-        logging.error(f"OpenAI API error: {oe}")
+        logging.error(f"OpenAI API error: {api_error}")
         return jsonify({"reply": "There was an error communicating with OpenAI. Please try again later."}), 500
 
     except Exception as e:
