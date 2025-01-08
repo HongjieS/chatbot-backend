@@ -67,6 +67,9 @@ def chat():
             print("Run failed:", run_response.json())
             return jsonify({"error": "Failed to run assistant"}), 500
 
+        # Log the run response
+        print("Run Response:", run_response.json())
+
         # Extract the Assistant's reply
         reply = run_response.json().get("message", {}).get("content", "No response from assistant.")
         return jsonify({"reply": reply})
@@ -74,6 +77,7 @@ def chat():
     except Exception as e:
         print(f"Error occurred: {e}")
         return jsonify({"reply": "Sorry, something went wrong. Please try again later."}), 500
+
 
 
 if __name__ == "__main__":
