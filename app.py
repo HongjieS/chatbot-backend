@@ -1,13 +1,17 @@
-import os
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import openai
+import os
 
 app = Flask(__name__)
 CORS(app)
 
-# Fetch OpenAI API key from the environment
+# Load OpenAI API key from environment variable
 openai.api_key = os.getenv("OPENAI_API_KEY")
+
+@app.route("/")
+def index():
+    return render_template("index.html")  # Ensure this HTML file exists in the 'templates' folder
 
 @app.route("/chat", methods=["POST"])
 def chat():
@@ -18,33 +22,33 @@ def chat():
 
         print(f"User Message: {user_message}")
 
-        # OpenAI API Request
-        response = openai.Completion.create(
-            engine="text-davinci-003",
-            prompt=f"User: {user_message}\nAI:",
-            max_tokens=150,
-            n=1,
-            stop=None,
-            temperature=0.7,
-        )
+        # Attempt to use the preferred model
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-4o-mini",  # Ensure this model exists in OpenAI API
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": user_message}
+                ]
+            )
+        except openai.error.InvalidRequestError as e:
+            print(f"Model gpt-4o-mini failed: {e}")
+            # Fallback to gpt-4
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": user_message}
+                ]
+            )
 
-        print(f"OpenAI Response: {response}")
-
-        # Extract reply
-        reply = response.get("choices", [{}])[0].get("text", "").strip()
-        if not reply:
-            print("No reply generated.")
-            return jsonify({"reply": "I couldn't generate a response. Please try again later."})
-
+        # Extract the bot's reply
+        reply = response.get("choices", [{}])[0].get("message", {}).get("content", "I'm not sure how to respond to that.")
         return jsonify({"reply": reply})
 
     except Exception as e:
-        # Log the full traceback
-        import traceback
-        traceback.print_exc()
         print(f"Error occurred: {e}")
         return jsonify({"reply": "Sorry, something went wrong. Please try again later."}), 500
 
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+if __name__ == "__main__":
+    app.run(debug=True)
