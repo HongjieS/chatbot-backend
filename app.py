@@ -56,7 +56,7 @@ def chat():
             model="gpt-3.5-turbo",  # or "gpt-4" if you have access
             messages=SESSION_CONVERSATIONS[session_id],
             temperature=0.7,
-            max_tokens=500
+            max_tokens=100
         )
 
         # Extract assistant's reply
