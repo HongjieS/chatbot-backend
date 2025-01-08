@@ -1,93 +1,94 @@
+import os
+import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import requests
-import os
 
 app = Flask(__name__)
 CORS(app)
 
-# 1. OpenAI Beta Assistants endpoints
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-# Replace with your actual Assistant ID from the Beta Assistants dashboard
-ASSISTANT_ID = "asst_EXmNOH6JnD7u06HMzrKc0eg4"
-OPENAI_API_URL = "https://api.openai.com/v1"
+# -------------------------------
+# 1. REQUIRED CONFIG
+# -------------------------------
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # Must be set in your Render environment
+ASSISTANT_ID = "asst_EXmNOH6JnD7u06HMzrKc0eg4"  # The Assistant you created in Beta
+BASE_URL = "https://api.openai.com/v1"
 
-# 2. Include the Beta header. Note the "assistants=v2"
+# The required Beta header
 HEADERS = {
     "Authorization": f"Bearer {OPENAI_API_KEY}",
     "Content-Type": "application/json",
     "OpenAI-Beta": "assistants=v2",
 }
 
-# 3. In-memory store for session -> thread mapping.
-#    In production, use a database or Redis.
+# In-memory store of session_id -> thread_id mapping
 SESSION_THREADS = {}
 
 @app.route("/")
 def home():
-    return jsonify({"message": "API is running with Beta Assistants."})
+    return jsonify({"message": "Beta Assistants API is running!"})
 
 @app.route("/chat", methods=["POST"])
 def chat():
     """
-    1) Checks if there's an existing thread for this session.
-       If not, create a new thread: POST /assistants/{assistant_id}/threads
-    2) Add the user's message: POST /assistants/{assistant_id}/threads/{thread_id}/messages
-    3) Run the assistant: POST /assistants/{assistant_id}/threads/{thread_id}/runs
-    4) Return the assistant's reply to the frontend.
+    1. If no thread exists for session_id, create a new one.
+    2. Add the user's message to the thread.
+    3. Run the assistant to get a reply.
+    4. Return the reply.
     """
     try:
-        data = request.json
+        data = request.json or {}
         user_message = data.get("message")
         session_id = data.get("session_id", "default")
 
         if not user_message:
-            return jsonify({"error": "Message is required"}), 400
+            return jsonify({"error": "No message provided."}), 400
 
-        # 1) If no thread exists, create one
+        # -- (A) CREATE THREAD IF NEEDED --
         if session_id not in SESSION_THREADS:
-            thread_url = f"{OPENAI_API_URL}/assistants/{ASSISTANT_ID}/threads"
-            create_thread_resp = requests.post(thread_url, headers=HEADERS, json={})
-            if create_thread_resp.status_code != 200:
-                return jsonify({"error": "Failed to create thread"}), 500
-            thread_id = create_thread_resp.json().get("id")
+            thread_endpoint = f"{BASE_URL}/assistants/{ASSISTANT_ID}/threads"
+            create_resp = requests.post(thread_endpoint, headers=HEADERS, json={})
+
+            # Print debug info so you can see what happened
+            print("\n[DEBUG] CREATE THREAD response:", create_resp.status_code, create_resp.text)
+
+            if create_resp.status_code != 200:
+                return jsonify({"error": f"Failed to create thread: {create_resp.text}"}), 500
+
+            thread_id = create_resp.json().get("id")
             SESSION_THREADS[session_id] = thread_id
         else:
             thread_id = SESSION_THREADS[session_id]
 
-        # 2) Add user’s message to the thread
-        message_url = f"{OPENAI_API_URL}/assistants/{ASSISTANT_ID}/threads/{thread_id}/messages"
-        message_payload = {
-            "role": "user",
-            "content": user_message
-        }
-        message_resp = requests.post(message_url, headers=HEADERS, json=message_payload)
-        if message_resp.status_code != 200:
-            return jsonify({"error": "Failed to add message to thread"}), 500
+        # -- (B) ADD USER MESSAGE --
+        message_endpoint = f"{BASE_URL}/assistants/{ASSISTANT_ID}/threads/{thread_id}/messages"
+        msg_payload = {"role": "user", "content": user_message}
+        msg_resp = requests.post(message_endpoint, headers=HEADERS, json=msg_payload)
 
-        # 3) Run the assistant
-        run_url = f"{OPENAI_API_URL}/assistants/{ASSISTANT_ID}/threads/{thread_id}/runs"
-        run_resp = requests.post(run_url, headers=HEADERS, json={})
+        print("[DEBUG] ADD MESSAGE response:", msg_resp.status_code, msg_resp.text)
+
+        if msg_resp.status_code != 200:
+            return jsonify({"error": f"Failed to add message: {msg_resp.text}"}), 500
+
+        # -- (C) RUN THE ASSISTANT --
+        run_endpoint = f"{BASE_URL}/assistants/{ASSISTANT_ID}/threads/{thread_id}/runs"
+        run_resp = requests.post(run_endpoint, headers=HEADERS, json={})
+
+        print("[DEBUG] RUN ASSISTANT response:", run_resp.status_code, run_resp.text)
+
         if run_resp.status_code != 200:
-            return jsonify({"error": "Failed to run assistant"}), 500
+            return jsonify({"error": f"Failed to run assistant: {run_resp.text}"}), 500
 
-        # 4) Extract the assistant's reply from the response
+        # The assistant's reply is typically found at run_resp.json()["message"]["content"]
         result_json = run_resp.json()
-        # The assistant’s message is typically found in result_json["message"]["content"]
-        assistant_reply = (
-            result_json.get("message", {}).get("content", "No response from assistant.")
-        )
+        assistant_message = result_json.get("message", {}).get("content", "No response from assistant.")
 
-        return jsonify({"reply": assistant_reply})
+        # Return that message to the frontend
+        return jsonify({"reply": assistant_message})
 
     except Exception as e:
-        print(f"Error occurred: {e}")
-        return (
-            jsonify({"reply": "Sorry, something went wrong. Please try again later."}),
-            500,
-        )
+        print("[ERROR]", e)
+        return jsonify({"error": "An unexpected error occurred on the server."}), 500
 
 
 if __name__ == "__main__":
-    # In production, set debug=False
-    app.run(debug=True)
+    app.run(debug=True)  # Turn off debug in production
