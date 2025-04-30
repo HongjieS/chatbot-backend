@@ -49,7 +49,7 @@ def chat():
     try:
         # Call OpenAI's ChatCompletion with the entire conversation
         response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",  # or "gpt-4" if you have access
+            model="gpt-4o-mini",
             messages=SESSION_CONVERSATIONS[session_id],
             temperature=0.7,
             max_tokens=100
